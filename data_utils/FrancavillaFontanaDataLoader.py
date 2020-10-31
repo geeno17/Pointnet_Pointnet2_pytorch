@@ -62,6 +62,19 @@ class PointCloudDataset(Dataset):
 		labelweights = labelweights / np.sum(labelweights)
 		self.labelweights = np.power(np.amax(labelweights) / labelweights, 1 / 3.0)
 		
+		self.max_coordinates = np.array([0.0,0.0,0.0])
+
+		for p in self.points:
+			max_x = np.max(p[0,:,0])
+			max_y = np.max(p[0,:,1])
+			max_z = np.max(p[0,:,2])
+			if max_x > self.max_coordinates[0]:
+				self.max_coordinates[0] = max_x
+			if max_y > self.max_coordinates[1]:
+				self.max_coordinates[1] = max_y
+			if max_z > self.max_coordinates[2]:
+				self.max_coordinates[2] = max_z
+		
 		self.idx = np.arange(0,len(self.points))
 		
 		if  (self.fold > 0):		
@@ -82,20 +95,23 @@ class PointCloudDataset(Dataset):
 	def __getitem__(self, id):		
 		current_points = self.points[self.idx[id]][0]
 		current_labels = self.labels[self.idx[id]][0]
-				
-		current_points[:,0:3] = pc_normalize(current_points[:,0:3])
+		
+		normalized_points = pc_normalize(np.copy(current_points[:,0:3]))
+		normalized_env_points = np.divide(np.copy(current_points[:,0:3]),self.max_coordinates)
+		rgb = np.copy(current_points[:,3:6])		
 		
 		if (self.split == "train"):			
 			weights = [self.labelweights[current_labels[i]] for i in range(len(current_labels))]
 			dist = weights / sum(weights)
-			current_points[:,3:6] = change_brightness(current_points[:,3:6])
-			
+			rgb = change_brightness(rgb)			
 			seed = None
 		elif (self.split == "test"):
 			dist = None
 			seed = 0
 			
-		sampled_points, sampled_labels = sample_data_label(current_points, current_labels, self.nPoints, dist, seed)
+		processed_points = np.concatenate((normalized_points, normalized_env_points, rgb),axis=1) 
+			
+		sampled_points, sampled_labels = sample_data_label(processed_points, current_labels, self.nPoints, dist, seed)
 		
 		return sampled_points, sampled_labels
 		
