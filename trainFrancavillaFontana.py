@@ -27,7 +27,7 @@ for i,cat in enumerate(seg_classes.keys()):
 
 def parse_args():
 	parser = argparse.ArgumentParser('Model')
-	parser.add_argument('--model', type=str, default='pointnet2_sem_seg', help='model name [default: pointnet_sem_seg]')
+	parser.add_argument('--model', type=str, default='pointnet2_sem_seg_TF', help='model name [default: pointnet_sem_seg]')
 	parser.add_argument('--pretrained_dir', type=str, help='pretrained model path')
 	parser.add_argument('--batch_size', type=int, default=16, help='Batch Size during training [default: 16]')
 	parser.add_argument('--epoch',	default=128, type=int, help='Epoch to run [default: 128]')
@@ -37,7 +37,7 @@ def parse_args():
 	parser.add_argument('--log_dir', type=str, default=None, help='Log path [default: None]')
 	parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay [default: 1e-4]')
 	parser.add_argument('--npoint', type=int,  default=1024, help='Point Number [default: 1024]')
-	parser.add_argument('--nchannel', type=int,	 default=6, help='Point Number [default: 6]')
+	parser.add_argument('--nchannel', type=int,	 default=9, help='Point Number [default: 6]')
 	parser.add_argument('--step_size', type=int,  default=10, help='Decay step for lr decay [default: every 10 epochs]')
 	parser.add_argument('--lr_decay', type=float,  default=0.7, help='Decay rate for lr decay [default: 0.7]')
 	parser.add_argument('--train_dir', type=str, default='data/oakland/trainval', help='Train path [default: data/oakland/trainval]')
@@ -128,41 +128,34 @@ def main(args):
 	
 	# TRANSFER LEARNING
 	if ((args.log_dir is None) & (args.pretrained_dir is not None)):
-		classifier_pre = MODEL.get_model(num_class = 10, num_point = 512, num_channel = 3) # Lille-Paris-3D
+		MODEL_PRE = importlib.import_module("pointnet2_sem_seg")
+		shutil.copy(ROOT_DIR + '/models/pointnet2_sem_seg.py', str(experiment_dir))
+		shutil.copy(ROOT_DIR + '/models/pointnet_util.py', str(experiment_dir))
+		classifier_pre = MODEL_PRE.get_model(num_class = 10, num_point = 512, num_channel = 3) # Paris-Lille-3D
 		checkpoint = torch.load(str(args.pretrained_dir) + '/checkpoints/best_model.pth')
 		
 		classifier_dict = classifier.state_dict()
 		classifier_pre_dict = classifier_pre.state_dict()
 		
-		# load from pretrained_dict all the layer parameters except for the input layer (sa1.mlp_convs.0) and the output layers (conv1, bn1, conv2)
+		# load from pretrained_dict all the layer parameters except for the output layers (conv1, bn1, conv2)
 		classifier_pre_dict = {k: v for k, v in classifier_pre_dict.items() if k in classifier_dict}
-		for k in ['sa1.mlp_convs.0.weight','sa1.mlp_convs.0.bias','conv1.weight','conv1.bias','bn1.weight','bn1.bias','bn1.running_mean','bn1.running_var','bn1.num_batches_tracked','conv2.weight','conv2.bias']:
+		for k in ['conv1.weight','conv1.bias','bn1.weight','bn1.bias','bn1.running_mean','bn1.running_var','bn1.num_batches_tracked','conv2.weight','conv2.bias']:
 			classifier_pre_dict.pop(k)
 			
 		classifier_dict.update(classifier_pre_dict)
-		
-		# load from pretrained_dict the parameters of the input layer, and partially update classifier_dict (from x,y,z,nx,ny,nz to x,y,z,nx,ny,nz,r,g,b)
-		w_pretrained = classifier_pre.state_dict()['sa1.mlp_convs.0.weight']
-		w_classifier = classifier_dict['sa1.mlp_convs.0.weight']
-
-		for i,w in enumerate(w_pretrained):
-		  w_classifier[i][0:6] = w
-
-		classifier_dict['sa1.mlp_convs.0.weight'] = w_classifier
-		
+				
 		# load classifier parameters
 		classifier.load_state_dict(classifier_dict)
 		
+		
+		# freeze core layers
 		'''
-		# freeze classifier layers except for the input layer (sa1.mlp_convs.0) and the output layers (conv1, bn1, conv2)
 		for i, child in enumerate(classifier.children()):
 			if (i < 8):
 				for param in child.parameters():
 					param.requires_grad = False
-					
-		classifier.sa1.mlp_convs[0].weight.requires_grad = True
-		classifier.sa1.mlp_convs[0].bias.requires_grad = True
-		'''
+		'''			
+		
 
 	if args.optimizer == 'Adam':
 		optimizer = torch.optim.Adam(
