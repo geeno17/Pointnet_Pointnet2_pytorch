@@ -4,9 +4,9 @@ from models.pointnet_util import PointNetSetAbstraction,PointNetFeaturePropagati
 
 
 class get_model(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_class, num_point, num_channel):
         super(get_model, self).__init__()
-        self.sa1 = PointNetSetAbstraction(512, 0.1, 32, 3 + 3, [32, 32, 64], False)
+        self.sa1 = PointNetSetAbstraction(num_point, 0.1, 32, num_channel + 3, [32, 32, 64], False)
         self.sa2 = PointNetSetAbstraction(256, 0.2, 32, 64 + 3, [64, 64, 128], False)
         self.sa3 = PointNetSetAbstraction(64, 0.4, 32, 128 + 3, [128, 128, 256], False)
         self.sa4 = PointNetSetAbstraction(16, 0.8, 32, 256 + 3, [256, 256, 512], False)
@@ -17,7 +17,7 @@ class get_model(nn.Module):
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
-        self.conv2 = nn.Conv1d(128, num_classes, 1)
+        self.conv2 = nn.Conv1d(128, num_class, 1)
 
     def forward(self, xyz):
         l0_points = xyz
