@@ -133,6 +133,7 @@ def main(args):
 		shutil.copy(ROOT_DIR + '/models/pointnet_util.py', str(experiment_dir))
 		classifier_pre = MODEL_PRE.get_model(num_class = 10, num_point = 512, num_channel = 3) # Paris-Lille-3D
 		checkpoint = torch.load(str(args.pretrained_dir) + '/checkpoints/best_model.pth')
+		classifier_pre.load_state_dict(checkpoint['model_state_dict'])
 		
 		classifier_dict = classifier.state_dict()
 		classifier_pre_dict = classifier_pre.state_dict()
@@ -145,8 +146,7 @@ def main(args):
 		classifier_dict.update(classifier_pre_dict)
 				
 		# load classifier parameters
-		classifier.load_state_dict(classifier_dict)
-		
+		classifier.load_state_dict(classifier_dict)		
 		
 		# freeze core layers
 		'''
